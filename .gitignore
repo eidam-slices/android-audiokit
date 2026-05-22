@@ -1,0 +1,15 @@
+build/
+*.iml
+*.log
+
+# Intellij
+.idea/
+
+# Gradle
+.gradle/
+
+# CMake
+.cxx/
+
+# Android
+local.properties
