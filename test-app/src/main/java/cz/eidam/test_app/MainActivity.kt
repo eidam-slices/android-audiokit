@@ -38,14 +38,18 @@ class MainActivity : ComponentActivity() {
 
                 // 1. INICIALIZACE engine (Aubio wrapper) a stavů UI
                 var selectedAlgorithm by remember { mutableStateOf(Algorithm.YIN_FFT) }
-                val availableAlgorithms = remember { Algorithm.values() }
+                var bufferSize by remember { mutableStateOf(8192) }
+                var hopSize by remember { mutableStateOf(1024) }
+                val availableAlgorithms = remember { Algorithm.entries }
+                val bufferSizeSteps = remember { listOf(2048, 4096, 8192, 16384, 32768, 65536) }
+                val hopSizeSteps = remember { listOf(256, 512, 1024, 2048, 4096, 8192) }
 
                 fun currentOptions() = EngineOptions(
                     algorithm = selectedAlgorithm,
-                    bufferSize = 8192,
-                    hopSize = 1024,
+                    bufferSize = bufferSize,
+                    hopSize = hopSize,
                     confidenceThreshold = 0.0f,
-                    minInputDb = -80f
+                    minInputDb = -70f
                 )
 
                 val engine = remember { Engines.aubio(currentOptions()) }
@@ -57,6 +61,33 @@ class MainActivity : ComponentActivity() {
 
                 fun applyAlgorithm(newAlgorithm: Algorithm) {
                     selectedAlgorithm = newAlgorithm
+                    engine.updateOptions(currentOptions())
+                }
+
+                fun increaseBufferSize() {
+                    val nextBufferSize = bufferSizeSteps.firstOrNull { it > bufferSize } ?: return
+                    bufferSize = nextBufferSize
+                    engine.updateOptions(currentOptions())
+                }
+
+                fun decreaseBufferSize() {
+                    val previousBufferSize = bufferSizeSteps.lastOrNull { it < bufferSize } ?: return
+                    bufferSize = previousBufferSize
+                    if (hopSize >= bufferSize) {
+                        hopSize = hopSizeSteps.lastOrNull { it < bufferSize } ?: hopSize
+                    }
+                    engine.updateOptions(currentOptions())
+                }
+
+                fun increaseHopSize() {
+                    val nextHopSize = hopSizeSteps.firstOrNull { it > hopSize && it < bufferSize } ?: return
+                    hopSize = nextHopSize
+                    engine.updateOptions(currentOptions())
+                }
+
+                fun decreaseHopSize() {
+                    val previousHopSize = hopSizeSteps.lastOrNull { it < hopSize } ?: return
+                    hopSize = previousHopSize
                     engine.updateOptions(currentOptions())
                 }
 
@@ -104,6 +135,12 @@ class MainActivity : ComponentActivity() {
                             modifier = Modifier.padding(top = 4.dp, bottom = 8.dp)
                         )
 
+                        Text(
+                            text = "Buffer size: $bufferSize · Hop size: $hopSize",
+                            fontSize = 13.sp,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+
                         Button(
                             onClick = {
                                 val currentIndex = availableAlgorithms.indexOf(selectedAlgorithm)
@@ -112,6 +149,44 @@ class MainActivity : ComponentActivity() {
                             }
                         ) {
                             Text("Přepnout algoritmus")
+                        }
+
+                        Row(
+                            modifier = Modifier.padding(top = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Button(
+                                onClick = { decreaseBufferSize() },
+                                enabled = bufferSizeSteps.any { it < bufferSize }
+                            ) {
+                                Text("Buffer -")
+                            }
+
+                            Button(
+                                onClick = { increaseBufferSize() },
+                                enabled = bufferSizeSteps.any { it > bufferSize }
+                            ) {
+                                Text("Buffer +")
+                            }
+                        }
+
+                        Row(
+                            modifier = Modifier.padding(top = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Button(
+                                onClick = { decreaseHopSize() },
+                                enabled = hopSizeSteps.any { it < hopSize }
+                            ) {
+                                Text("Hop -")
+                            }
+
+                            Button(
+                                onClick = { increaseHopSize() },
+                                enabled = hopSizeSteps.any { it > hopSize && it < bufferSize }
+                            ) {
+                                Text("Hop +")
+                            }
                         }
 
                         Text(
