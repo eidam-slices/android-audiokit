@@ -82,32 +82,21 @@ object Engines {
  */
 class AubioEngine(override var options: EngineOptions = EngineOptions()) : AudioEngine {
     private var listener: ResultListener? = null
-    // keep a strong reference to the native callback object so JVM doesn't GC it
     private var nativeCallbackRef: FrequencyCallback? = null
+    private val nativeHandle: Long = NativeLib.createEngine(options.algorithm.ordinal, options.bufferSize, options.hopSize, options.confidenceThreshold, options.minInputDb)
 
     override fun start(listener: ResultListener): Boolean {
         this.listener = listener
-
-        // Adapter: NativeLib will call onFrequencyChanged(frequency, confidence, rms)
         val cb = object : FrequencyCallback {
             override fun onFrequencyChanged(value: Float, confidence: Float, rms: Float) {
                 val result = AnalysisResult(frequencyHz = value, confidence = confidence, rms = rms)
                 this@AubioEngine.listener?.invoke(result)
             }
         }
-
         nativeCallbackRef = cb
         return try {
-            NativeLib.start(
-                options.algorithm.ordinal,
-                options.bufferSize,
-                options.hopSize,
-                options.confidenceThreshold,
-                options.minInputDb,
-                cb
-            )
+            NativeLib.engineStart(nativeHandle, cb)
         } catch (_: Throwable) {
-            // if native start throws for some reason, clear ref
             nativeCallbackRef = null
             false
         }
@@ -115,7 +104,7 @@ class AubioEngine(override var options: EngineOptions = EngineOptions()) : Audio
 
     override fun stop() {
         try {
-            NativeLib.stop()
+            NativeLib.engineStop(nativeHandle)
         } finally {
             nativeCallbackRef = null
             listener = null
@@ -125,15 +114,17 @@ class AubioEngine(override var options: EngineOptions = EngineOptions()) : Audio
     override fun updateOptions(options: EngineOptions): Boolean {
         this.options = options
         return try {
-            NativeLib.updateOptions(
-                options.algorithm.ordinal,
-                options.bufferSize,
-                options.hopSize,
-                options.confidenceThreshold,
-                options.minInputDb
-            )
+            NativeLib.engineUpdateOptions(nativeHandle, options.algorithm.ordinal, options.bufferSize, options.hopSize, options.confidenceThreshold, options.minInputDb)
         } catch (_: Throwable) {
             false
+        }
+    }
+
+    protected fun finalize() {
+        try {
+            NativeLib.destroyEngine(nativeHandle)
+        } catch (_: Throwable) {
+            // ignore
         }
     }
 }

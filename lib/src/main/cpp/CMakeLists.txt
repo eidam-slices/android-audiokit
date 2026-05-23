@@ -18,7 +18,7 @@ set_target_properties(aubio PROPERTIES POSITION_INDEPENDENT_CODE ON)
 target_include_directories(aubio PUBLIC "${AUBIO_ROOT}" "${CMAKE_CURRENT_BINARY_DIR}")
 target_compile_definitions(aubio PRIVATE HAVE_CONFIG_H)
 
-add_library(audiokit SHARED native-lib.cpp)
+add_library(audiokit SHARED native-lib.cpp audio_engine.cpp audio_source_manager.cpp)
 target_include_directories(audiokit PRIVATE "${AUBIO_ROOT}" "${CMAKE_CURRENT_BINARY_DIR}")
 
 
