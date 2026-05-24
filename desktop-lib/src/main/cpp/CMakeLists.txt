@@ -12,6 +12,10 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 # !!! ZMĚNA: CMake teď sype výsledky rovnou do složky, kterou Gradle balí do JARu !!!
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/../../../build/clibs/${PLATFORM_DIR}")
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/../../../build/clibs/${PLATFORM_DIR}")
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_CURRENT_SOURCE_DIR}/../../../build/clibs/${PLATFORM_DIR}")
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY_RELEASE "${CMAKE_CURRENT_SOURCE_DIR}/../../../build/clibs/${PLATFORM_DIR}")
+
 set(CORE_NATIVE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../../core-lib/src/main/cpp")
 
 # Najdeme JNI a Thready
