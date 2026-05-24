@@ -3,5 +3,5 @@
 	url = https://github.com/aubio/aubio.git
 
 [submodule "desktop-lib/src/main/cpp/rtaudio"]
-    path = desktop-lib/src/main/cpp/rtaudio
-    url = https://github.com/thestk/rtaudio.git
+	path = desktop-lib/src/main/cpp/rtaudio
+	url = https://github.com/thestk/rtaudio.git
