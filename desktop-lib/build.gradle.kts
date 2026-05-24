@@ -119,6 +119,7 @@ tasks.named<Delete>("clean") {
 
 tasks.jar {
     // 1. Zabalíme nativní knihovny sesypané z GitHub Actions
+    duplicatesStrategy = DuplicatesStrategy.INCLUDE
     from("build/clibs") {
         include("**/*.dylib", "**/*.so", "**/*.dll")
         into("natives")
