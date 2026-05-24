@@ -74,7 +74,7 @@ val osArch get() = System.getProperty("os.arch").lowercase()
 // C++ CMake úkoly s inteligentní detekcí cesty pro Mac a IDE
 val cmakeConfigure = tasks.register<Exec>("cmakeConfigure") {
     workingDir = file("src/main/cpp")
-    val javaHome = System.getProperty("java.home")
+    val javaHome = System.getProperty("java.home").replace("\\", "/")
     val cmakeExecutable = file("/opt/homebrew/bin/cmake").let { if (it.exists()) it.absolutePath else "cmake" }
 
     commandLine(
