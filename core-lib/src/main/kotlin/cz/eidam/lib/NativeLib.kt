@@ -39,6 +39,46 @@ object NativeLib {
         confidenceThreshold: Float,
         minInputDb: Float
     ): Boolean
+
+    // =========================================================================
+    // NOVÉ NATIVNÍ METODY PRO ZAŘÍZENÍ
+    // =========================================================================
+
+    // Nativní metoda, která z C++ vrátí pole stringů ve formátu ["0|Mikrofon", "1|Sluchatka"]
+    private external fun nativeGetDevices(context: Any?): Array<String>
+
+    // Nativní metoda pro předání zvoleného ID dolů do Oboe / RtAudio
+    private external fun nativeSetDeviceId(deviceId: Int)
+
+    // =========================================================================
+    // VEŘEJNÉ KOTLIN API PRO TVŮJ ENGINE
+    // =========================================================================
+
+    /**
+     * Vrátí seznam dostupných mikrofonů a vstupů.
+     * Na Androidu předávej android.content.Context (např. applicationContext).
+     * Na Desktopu volej bez parametru (defaultně se předá null).
+     */
+    fun getAvailableDevices(context: Any? = null): List<AudioDevice> {
+        return try {
+            nativeGetDevices(context).map { rawEntry ->
+                val parts = rawEntry.split("|", limit = 2)
+                val id = parts[0].toInt()
+                val name = parts.getOrNull(1) ?: "Neznámé zařízení"
+                AudioDevice(id, name)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            emptyList()
+        }
+    }
+
+    /**
+     * Přepne aktivní vstupní zařízení (mikrofon) podle jeho ID.
+     */
+    fun setAudioInputDevice(deviceId: Int) {
+        nativeSetDeviceId(deviceId)
+    }
 }
 
 @Suppress("unused")

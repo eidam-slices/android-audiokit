@@ -5,7 +5,13 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.*
+import androidx.compose.ui.tooling.preview.Devices
 import cz.eidam.test_app.ui.theme.KotlinaudiolibTheme
+
+
+enum class Screens {
+    Single, Dual, Devices
+}
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -14,20 +20,29 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             KotlinaudiolibTheme {
-                var showDualMode by remember { mutableStateOf(false) }
+                var screen by remember { mutableStateOf(Screens.Single) }
 
-                if (showDualMode) {
-                    DualAlgorithmScreen(
-                        onBack = {
-                            showDualMode = false
-                        }
-                    )
-                } else {
-                    SingleAlgorithm(
+                when (screen) {
+                    Screens.Single -> SingleAlgorithm(
                         onOpenDualMode = {
-                            showDualMode = true
+                            screen = Screens.Dual
+                        },
+                        onOpenDevices = {
+                            screen = Screens.Devices
                         }
                     )
+                    Screens.Dual -> DualAlgorithmScreen(
+                        onBack = {
+                            screen = Screens.Single
+                        }
+                    )
+
+                    Screens.Devices -> Devices(
+                        onBack = {
+                            screen = Screens.Single
+                        }
+                    )
+
                 }
             }
         }

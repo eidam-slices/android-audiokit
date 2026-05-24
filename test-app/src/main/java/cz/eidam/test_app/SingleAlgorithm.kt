@@ -34,7 +34,8 @@ import kotlin.math.log10
 @Suppress("unused")
 @Composable
 fun SingleAlgorithm(
-    onOpenDualMode: () -> Unit = {}
+    onOpenDualMode: () -> Unit = {},
+    onOpenDevices: () -> Unit = {},
 ) {
     val context = LocalContext.current
 
@@ -254,6 +255,10 @@ fun SingleAlgorithm(
                 ) {
                     Text("Zastavit nahrávání")
                 }
+            }
+
+            Button(onClick = onOpenDevices) {
+                Text("Open devices")
             }
         }
     }

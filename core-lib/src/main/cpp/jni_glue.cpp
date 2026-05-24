@@ -5,8 +5,11 @@
 #include <jni.h>
 #include <unordered_map>
 #include <mutex>
+#include <string>
+#include <vector>
 #include "audio_engine.h"
 #include "result_listener.h"
+#include "audio_source.h"
 
 #ifdef __ANDROID__
 #include <android/log.h>
@@ -139,4 +142,123 @@ Java_cz_eidam_lib_NativeLib_engineUpdateOptions(JNIEnv* env, jobject thiz, jlong
     AudioEngine* engine = reinterpret_cast<AudioEngine*>(handle);
     if (!engine) return JNI_FALSE;
     return engine->updateOptions(static_cast<int>(algorithmId), static_cast<int>(bufferSize), static_cast<int>(hopSize), static_cast<float>(confidenceThreshold), static_cast<float>(minInputDb)) ? JNI_TRUE : JNI_FALSE;
+}
+
+// =========================================================================
+// INTERFEJS PRO SPRÁVU AUDIO ZAŘÍZENÍ (SPOLEČNÝ PRO OBOE I RTAUDIO)
+// =========================================================================
+
+extern "C" JNIEXPORT jobjectArray JNICALL
+Java_cz_eidam_lib_NativeLib_nativeGetDevices(JNIEnv *env, jobject thiz, jobject context) {
+
+#ifdef __ANDROID__
+    // Vyčistíme lokální paměť Oboe modulu před novým načtením
+    AudioSourceManager::instance().clearAndroidDevices();
+
+    if (context != nullptr) {
+        jclass contextClass = env->GetObjectClass(context);
+        jmethodID getSystemServiceMethod = env->GetMethodID(contextClass, "getSystemService", "(Ljava/lang/String;)Ljava/lang/Object;");
+        jstring audioServiceName = env->NewStringUTF("audio");
+        jobject audioManager = env->CallObjectMethod(context, getSystemServiceMethod, audioServiceName);
+        env->DeleteLocalRef(audioServiceName);
+
+        if (audioManager != nullptr) {
+            jclass audioManagerClass = env->GetObjectClass(audioManager);
+            jmethodID getDevicesMethod = env->GetMethodID(audioManagerClass, "getDevices", "(I)[Landroid/media/AudioDeviceInfo;");
+
+            // 1 = AudioManager.GET_DEVICES_INPUTS
+            jobjectArray devicesArray = (jobjectArray)env->CallObjectMethod(audioManager, getDevicesMethod, 1);
+
+            if (devicesArray != nullptr) {
+                jsize length = env->GetArrayLength(devicesArray);
+                for (jsize i = 0; i < length; i++) {
+                    jobject device = env->GetObjectArrayElement(devicesArray, i);
+                    jclass deviceClass = env->GetObjectClass(device);
+
+                    // 1. Vytáhneme ID zařízení: int id = device.getId();
+                    jmethodID getIdMethod = env->GetMethodID(deviceClass, "getId", "()I");
+                    jint id = env->CallIntMethod(device, getIdMethod);
+
+                    // 2. Vytáhneme TYP zařízení: int type = device.getType();
+                    jmethodID getTypeMethod = env->GetMethodID(deviceClass, "getType", "()I");
+                    jint type = env->CallIntMethod(device, getTypeMethod);
+
+                    // 3. Určíme lidský název podle konstant z Android SDK (AudioDeviceInfo.TYPE_*)
+                    // 3. Určíme lidský název podle konstant z Android SDK (AudioDeviceInfo.TYPE_*)
+                    std::string friendlyName = "Neznámé audio zařízení";
+                    switch (type) {
+                        case 15: friendlyName = "Vestavěný mikrofon"; break;       // TYPE_BUILTIN_MIC
+                        case 3:  friendlyName = "Wired Headset (Jack)"; break;     // TYPE_WIRED_HEADSET
+                        case 7:  friendlyName = "Bluetooth Headset (SCO)"; break;  // TYPE_BLUETOOTH_SCO
+                        case 26: friendlyName = "Bluetooth LE Mikrofon"; break;    // TYPE_BLUETOOTH_A2DP (BLE Audio)
+                        case 11: friendlyName = "USB Zvukovka / Vstup"; break;     // TYPE_USB_DEVICE
+                        case 22: friendlyName = "USB Headset / AirPods"; break;    // TYPE_USB_HEADSET
+                        case 13: friendlyName = "USB Dock / Audio rozhraní"; break;// TYPE_DOCK (Zde se často hlásí sluchátka přes USB-C)
+                        case 5:  friendlyName = "Line-in Analogový vstup"; break;  // TYPE_LINE_ANALOG
+                        default: {
+                            // Záložní řešení: Zkusíme vytáhnout název produktu od výrobce
+                            jmethodID getProductNameMethod = env->GetMethodID(deviceClass, "getProductName", "()Ljava/lang/CharSequence;");
+                            jobject productNameCharSeq = env->CallObjectMethod(device, getProductNameMethod);
+
+                            if (productNameCharSeq != nullptr) {
+                                jclass charSeqClass = env->GetObjectClass(productNameCharSeq);
+                                jmethodID toStringMethod = env->GetMethodID(charSeqClass, "toString", "()Ljava/lang/String;");
+                                jstring nameString = (jstring)env->CallObjectMethod(productNameCharSeq, toStringMethod);
+
+                                if (nameString != nullptr) {
+                                    const char* nativeName = env->GetStringUTFChars(nameString, nullptr);
+                                    friendlyName = std::string(nativeName);
+                                    env->ReleaseStringUTFChars(nameString, nativeName);
+                                    env->DeleteLocalRef(nameString);
+                                } else {
+                                    friendlyName = "Externí mikrofon (Typ " + std::to_string(type) + ")";
+                                }
+                                env->DeleteLocalRef(charSeqClass);
+                                env->DeleteLocalRef(productNameCharSeq);
+                            } else {
+                                // Bezpečný fallback, pokud getProductName() selže a vrátí null
+                                friendlyName = "Externí mikrofon (Typ " + std::to_string(type) + ")";
+                            }
+                            break;
+                        }
+                    }
+
+                    // Registrace do Oboe modulu s unikátním názvem
+                    AudioSourceManager::instance().registerAndroidDevice(id, friendlyName);
+
+                    env->DeleteLocalRef(deviceClass);
+                    env->DeleteLocalRef(device);
+                }
+                env->DeleteLocalRef(devicesArray);
+            }
+            env->DeleteLocalRef(audioManagerClass);
+            env->DeleteLocalRef(audioManager);
+        }
+        env->DeleteLocalRef(contextClass);
+    }
+#endif
+
+    // --- SPOLEČNÉ CHOVÁNÍ ---
+    // Na desktopu projde živé RtAudio hardwarové vstupy
+    // Na Androidu vrátí vektor, který jsme právě naplnili z AudioManageru
+    std::vector<AudioDevice> devices = AudioSourceManager::instance().getAvailableDevices();
+
+    jclass stringClass = env->FindClass("java/lang/String");
+    jobjectArray ret = env->NewObjectArray(devices.size(), stringClass, env->NewStringUTF(""));
+
+    for (size_t i = 0; i < devices.size(); i++) {
+        // Formát stringu: "id|název"
+        std::string entry = std::to_string(devices[i].id) + "|" + devices[i].name;
+        jstring jstr = env->NewStringUTF(entry.c_str());
+        env->SetObjectArrayElement(ret, i, jstr);
+        env->DeleteLocalRef(jstr);
+    }
+
+    return ret;
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_cz_eidam_lib_NativeLib_nativeSetDeviceId(JNIEnv *env, jobject thiz, jint deviceId) {
+    // Zavolá bezpečný restart s novým ID na aktivní platformě (RtAudio / Oboe)
+    AudioSourceManager::instance().setDeviceId(static_cast<int32_t>(deviceId));
 }

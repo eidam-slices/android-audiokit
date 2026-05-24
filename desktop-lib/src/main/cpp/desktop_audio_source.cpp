@@ -6,6 +6,7 @@
 #include <mutex>
 #include <cstdio>
 #include <cmath>
+#include "../../../../core-lib/src/main/cpp/include/audio_source.h"
 // Desktop audio source using RtAudio only.
 
 struct AudioSourceManager::Impl {
@@ -16,6 +17,9 @@ struct AudioSourceManager::Impl {
     RtAudio::StreamParameters inputParams;
     bool streamOpen = false;
 
+    // -1 znamená: použij výchozí systémové zařízení (Default)
+    int32_t currentDeviceId = -1;
+
     Impl() {
         if (!initRtAudio()) {
             fprintf(stderr, "RtAudio init failed\n");
@@ -23,6 +27,11 @@ struct AudioSourceManager::Impl {
     }
 
     ~Impl() {
+        closeStream();
+    }
+
+    // Pomocná metoda pro bezpečné zavření streamu před restartem
+    void closeStream() {
         if (streamOpen) {
             try {
                 if (dac.isStreamRunning()) dac.stopStream();
@@ -30,6 +39,7 @@ struct AudioSourceManager::Impl {
             } catch (...) {
                 fprintf(stderr, "Error closing RtAudio stream\n");
             }
+            streamOpen = false;
         }
     }
 
@@ -39,7 +49,13 @@ struct AudioSourceManager::Impl {
             return false;
         }
 
-        inputParams.deviceId = dac.getDefaultInputDevice();
+        // POKUD JE NASTAVENO ID, POUŽIJEME HO. JINAK VEZMEME DEFAULT.
+        if (currentDeviceId >= 0) {
+            inputParams.deviceId = static_cast<unsigned int>(currentDeviceId);
+        } else {
+            inputParams.deviceId = dac.getDefaultInputDevice();
+        }
+
         inputParams.nChannels = 1; // mono input
         inputParams.firstChannel = 0;
 
@@ -72,7 +88,6 @@ struct AudioSourceManager::Impl {
                         inputParams.deviceId, inputParams.nChannels, rate, bufferFrames);
                 return true;
             } else {
-                // Log error text and try next candidate
                 fprintf(stderr, "RtAudio openStream failed for rate %u: %s\n", rate, dac.getErrorText().c_str());
             }
         }
@@ -91,31 +106,28 @@ struct AudioSourceManager::Impl {
         if (!self || !inputBuffer) return 0;
 
         float* input = static_cast<float*>(inputBuffer);
-        
-        // Push samples to registered consumers
+
         {
             std::lock_guard<std::mutex> lock(self->mtx);
             for (auto* c : self->consumers) {
                 if (c) c->pushSamples(input, nFrames, 1);
             }
         }
-        
-        // Compute and log RMS for debugging
+
         float rmsSum = 0.0f;
         for (unsigned int i = 0; i < nFrames; ++i) {
             rmsSum += input[i] * input[i];
         }
         float rms = std::sqrt(rmsSum / nFrames);
-        
-        // Log every 50 callbacks (~500ms at 48kHz, 512 buffers)
+
         static int callCount = 0;
         if (++callCount >= 50) {
             callCount = 0;
             float dbVal = 20.0f * std::log10(std::max(rms, 1e-6f));
             fprintf(stderr, "[RtAudio] RMS: %.4f (%.1f dB)\n", rms, dbVal);
         }
-        
-        return 0; // continue stream
+
+        return 0;
     }
 
     void startStream() {
@@ -151,6 +163,29 @@ struct AudioSourceManager::Impl {
         consumers.erase(std::remove(consumers.begin(), consumers.end(), c), consumers.end());
         if (consumers.empty()) stopStream();
     }
+
+    // NOVÁ IMPLEMENTACE METODY PRO ZMĚNU ZAŘÍZENÍ UVNITŘ IMPL
+    void setDeviceId(int32_t deviceId) {
+        std::lock_guard<std::mutex> lock(mtx);
+        if (currentDeviceId == deviceId) return;
+
+        currentDeviceId = deviceId;
+
+        // Pokud stream běží, bezpečně ho restartujeme s novým ID
+        if (streamOpen) {
+            bool wasRunning = dac.isStreamRunning();
+
+            // Dočasně uvolníme zámek na stopnutí a re-init, abychom neriskovali deadlock s callbackem
+            mtx.unlock();
+            closeStream();
+            bool ok = initRtAudio();
+            mtx.lock();
+
+            if (ok && wasRunning && !consumers.empty()) {
+                startStream();
+            }
+        }
+    }
 };
 
 // Implement the DesktopAudioSourceManager API expected by core.
@@ -165,3 +200,41 @@ AudioSourceManager::~AudioSourceManager() { delete mImpl; }
 
 void AudioSourceManager::addConsumer(AudioConsumer* consumer) { mImpl->addConsumer(consumer); }
 void AudioSourceManager::removeConsumer(AudioConsumer* consumer) { mImpl->removeConsumer(consumer); }
+
+// PROPOJENÍ NATIVNÍHO API S IMPL PRO ZMĚNU ID
+void AudioSourceManager::setDeviceId(int32_t deviceId) {
+    mImpl->setDeviceId(deviceId);
+}
+
+std::vector<AudioDevice> AudioSourceManager::getAvailableDevices() {
+    std::vector<AudioDevice> list;
+    RtAudio dac;
+
+    // V RtAudio v6 získáme vektor reálných ID přímo od systému
+    std::vector<unsigned int> deviceIds = dac.getDeviceIds();
+
+    for (unsigned int id : deviceIds) {
+        try {
+            RtAudio::DeviceInfo info = dac.getDeviceInfo(id);
+            // Zajímá nás pouze zařízení, které má alespoň 1 vstupní kanál
+            if (info.inputChannels > 0) {
+                AudioDevice dev;
+                dev.id = static_cast<int32_t>(id); // Uložíme reálné systémové ID
+                dev.name = info.name;
+
+                if (info.isDefaultInput) {
+                    dev.name += " (Výchozí)";
+                }
+
+                list.push_back(dev);
+            }
+        } catch (const std::exception& e) {
+            fprintf(stderr, "Exception querying device %u: %s\n", id, e.what());
+        } catch (...) {
+            fprintf(stderr, "Unknown error querying device %u\n", id);
+        }
+    }
+    return list;
+}
+void AudioSourceManager::registerAndroidDevice(int32_t id, const std::string& name) {}
+void AudioSourceManager::clearAndroidDevices() {}
