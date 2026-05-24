@@ -10,10 +10,29 @@ if(NOT EXISTS "${AUBIO_ROOT}")
     message(FATAL_ERROR "aubio sources not found at ${AUBIO_ROOT}")
 endif()
 
-file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/config.h" "#ifndef CMAKE_CONFIG_H\n#define CMAKE_CONFIG_H\n#define HAVE_STDLIB_H 1\n#define HAVE_STDIO_H 1\n#define HAVE_MATH_H 1\n#define HAVE_STRING_H 1\n#define HAVE_ERRNO_H 1\n#define HAVE_LIMITS_H 1\n#define HAVE_STDARG_H 1\n#define HAVE_UNISTD_H 1\n#define HAVE_GETOPT_H 1\n#endif\n")
+# Inteligentní generování config.h pro všechny platformy
+file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/config.h" "
+#ifndef CMAKE_CONFIG_H
+#define CMAKE_CONFIG_H
+
+#define HAVE_STDLIB_H 1
+#define HAVE_STDIO_H 1
+#define HAVE_MATH_H 1
+#define HAVE_STRING_H 1
+#define HAVE_ERRNO_H 1
+#define HAVE_LIMITS_H 1
+#define HAVE_STDARG_H 1
+#define HAVE_VA_ARGS 1
+
+#ifndef _MSC_VER
+#define HAVE_UNISTD_H 1
+#define HAVE_GETOPT_H 1
+#endif
+
+#endif
+")
 
 file(GLOB_RECURSE AUBIO_SOURCES CONFIGURE_DEPENDS "${AUBIO_ROOT}" "*.c")
-# !!! UPRAV TENTO ŘÁDEK TAKHLE !!!
 list(FILTER AUBIO_SOURCES EXCLUDE REGEX "python/ext|tests/|examples/")
 add_library(aubio STATIC ${AUBIO_SOURCES})
 set_target_properties(aubio PROPERTIES POSITION_INDEPENDENT_CODE ON)
@@ -21,25 +40,20 @@ target_include_directories(aubio PUBLIC "${AUBIO_ROOT}" "${CMAKE_CURRENT_BINARY_
 target_compile_definitions(aubio PRIVATE HAVE_CONFIG_H)
 target_link_libraries(aubio PUBLIC m)
 
+# Správné větvení flagů podle kompilátoru
 if(MSVC)
-    # Vynutíme moderní preprocesor, aby MSVC uměl správně přečíst makra s '...' v Aubio
     target_compile_options(aubio PRIVATE /Zc:preprocessor)
 else()
     target_compile_options(aubio PRIVATE -std=gnu99 -Wno-implicit-function-declaration)
 endif()
 
 file(GLOB_RECURSE CORE_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp")
-# Include only core engine sources in core_native. The JNI glue is compiled
-# directly into platform shared libraries so the linker won't discard the
-# JNI exports on desktop platforms.
 list(FILTER CORE_SOURCES INCLUDE REGEX "core_audio_engine\\.cpp$")
 add_library(core_native STATIC ${CORE_SOURCES})
 set_target_properties(core_native PROPERTIES POSITION_INDEPENDENT_CODE ON)
 target_include_directories(core_native PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
 target_include_directories(core_native PRIVATE "${AUBIO_ROOT}")
 
-# If JNI include dirs are available (provided by parent), add them so
-# jni_glue.cpp can include <jni.h> when building for desktop.
 if (DEFINED JNI_INCLUDE_DIRS AND NOT "${JNI_INCLUDE_DIRS}" STREQUAL "")
     target_include_directories(core_native PRIVATE ${JNI_INCLUDE_DIRS})
 endif()
