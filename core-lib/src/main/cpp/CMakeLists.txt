@@ -38,7 +38,11 @@ add_library(aubio STATIC ${AUBIO_SOURCES})
 set_target_properties(aubio PROPERTIES POSITION_INDEPENDENT_CODE ON)
 target_include_directories(aubio PUBLIC "${AUBIO_ROOT}" "${CMAKE_CURRENT_BINARY_DIR}")
 target_compile_definitions(aubio PRIVATE HAVE_CONFIG_H)
-target_link_libraries(aubio PUBLIC m)
+
+# !!! OPRAVA PRO WINDOWS: Knihovnu 'm' linkujeme pouze na Macu/Linuxu !!!
+if(NOT MSVC)
+    target_link_libraries(aubio PUBLIC m)
+endif()
 
 # Správné větvení flagů podle kompilátoru
 if(MSVC)
@@ -59,6 +63,12 @@ if (DEFINED JNI_INCLUDE_DIRS AND NOT "${JNI_INCLUDE_DIRS}" STREQUAL "")
 endif()
 
 find_package(Threads REQUIRED)
-target_link_libraries(core_native PUBLIC aubio m Threads::Threads)
+
+# !!! OPRAVA PRO WINDOWS: Tady taky linkujeme 'm' pouze pro Unixy !!!
+if(MSVC)
+    target_link_libraries(core_native PUBLIC aubio Threads::Threads)
+else()
+    target_link_libraries(core_native PUBLIC aubio m Threads::Threads)
+endif()
 
 message(STATUS "Configured core_native (aubio + engine)")
