@@ -4,6 +4,7 @@ build/
 
 # Intellij
 .idea/
+*log.txt
 
 # Gradle
 .gradle/
