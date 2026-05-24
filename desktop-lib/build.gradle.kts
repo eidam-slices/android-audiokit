@@ -114,3 +114,25 @@ tasks.named<Delete>("clean") {
     delete("build/clibs")
 }
 
+
+// !!! TENTO UPRAVENÝ BLOK DEJ NA ÚPLNÝ KONEC SOUBORU !!!
+
+tasks.jar {
+    // 1. Zabalíme nativní knihovny sesypané z GitHub Actions
+    from("build/clibs") {
+        include("**/*.dylib", "**/*.so", "**/*.dll")
+        into("natives")
+    }
+
+    // 2. Vezmeme zkompilované třídy z tohoto modulu (desktop-lib)
+    val mainSourceSet = extensions.getByType<SourceSetContainer>()["main"]
+    from(mainSourceSet.output)
+
+    // 3. !!! TOHLE PŘIBALÍ I TVŮJ MODUL CORE-LIB !!!
+    // Najdeme projekt :core-lib, vezmeme jeho zkompilované třídy a vložíme je do JARu
+    val coreLibProject = project(":core-lib")
+    dependsOn(coreLibProject.tasks.named("compileKotlin")) // Pojistka, aby se nejdřív zkompiloval core-lib
+
+    val coreLibSourceSet = coreLibProject.extensions.getByType<SourceSetContainer>()["main"]
+    from(coreLibSourceSet.output)
+}
