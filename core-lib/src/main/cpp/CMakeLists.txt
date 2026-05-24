@@ -13,7 +13,8 @@ endif()
 file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/config.h" "#ifndef CMAKE_CONFIG_H\n#define CMAKE_CONFIG_H\n#define HAVE_STDLIB_H 1\n#define HAVE_STDIO_H 1\n#define HAVE_MATH_H 1\n#define HAVE_STRING_H 1\n#define HAVE_ERRNO_H 1\n#define HAVE_LIMITS_H 1\n#define HAVE_STDARG_H 1\n#define HAVE_UNISTD_H 1\n#define HAVE_GETOPT_H 1\n#endif\n")
 
 file(GLOB_RECURSE AUBIO_SOURCES CONFIGURE_DEPENDS "${AUBIO_ROOT}" "*.c")
-list(FILTER AUBIO_SOURCES EXCLUDE REGEX "python/ext|tests/")
+# !!! UPRAV TENTO ŘÁDEK TAKHLE !!!
+list(FILTER AUBIO_SOURCES EXCLUDE REGEX "python/ext|tests/|examples/")
 add_library(aubio STATIC ${AUBIO_SOURCES})
 set_target_properties(aubio PROPERTIES POSITION_INDEPENDENT_CODE ON)
 target_include_directories(aubio PUBLIC "${AUBIO_ROOT}" "${CMAKE_CURRENT_BINARY_DIR}")
