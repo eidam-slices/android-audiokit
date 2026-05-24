@@ -47,8 +47,11 @@ target_include_directories(audiokit PRIVATE
 target_link_libraries(audiokit PRIVATE
         core_native
         rtaudio
-        m
         Threads::Threads
 )
+
+if(NOT MSVC)
+        target_link_libraries(audiokit PRIVATE m)
+endif()
 
 message(STATUS "Configured audiokit using local RtAudio submodule")
