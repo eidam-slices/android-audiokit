@@ -1,3 +1,7 @@
-[submodule "lib/src/main/cpp/aubio"]
-	path = lib/src/main/cpp/aubio
+[submodule "core-lib/src/main/cpp/aubio"]
+	path = core-lib/src/main/cpp/aubio
 	url = https://github.com/aubio/aubio.git
+
+[submodule "desktop-lib/src/main/cpp/rtaudio"]
+    path = desktop-lib/src/main/cpp/rtaudio
+    url = https://github.com/thestk/rtaudio.git
