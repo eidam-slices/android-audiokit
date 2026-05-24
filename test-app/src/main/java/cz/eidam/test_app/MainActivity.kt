@@ -23,7 +23,7 @@ class MainActivity : ComponentActivity() {
                         }
                     )
                 } else {
-                    MainScreen(
+                    SingleAlgorithm(
                         onOpenDualMode = {
                             showDualMode = true
                         }

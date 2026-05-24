@@ -21,4 +21,9 @@ dependencyResolutionManagement {
 
 rootProject.name = "android-audiokit"
 include(":test-app")
-include(":lib")
+
+include(":core-lib")
+include(":android-lib")
+
+include(":desktop-lib")
+include("desktop-test-app")
