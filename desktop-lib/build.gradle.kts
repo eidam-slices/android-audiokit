@@ -125,14 +125,15 @@ tasks.jar {
     }
 
     // 2. Vezmeme zkompilované třídy z tohoto modulu (desktop-lib)
-    val mainSourceSet = extensions.getByType<SourceSetContainer>()["main"]
+    // Využijeme vestavěné property "sourceSets", kterou dodává Kotlin/Java plugin projektu
+    val mainSourceSet = project.extensions.getByType<SourceSetContainer>()["main"]
     from(mainSourceSet.output)
 
     // 3. !!! TOHLE PŘIBALÍ I TVŮJ MODUL CORE-LIB !!!
-    // Najdeme projekt :core-lib, vezmeme jeho zkompilované třídy a vložíme je do JARu
     val coreLibProject = project(":core-lib")
     dependsOn(coreLibProject.tasks.named("compileKotlin")) // Pojistka, aby se nejdřív zkompiloval core-lib
 
+    // Zde musíme explicitně sáhnout do extensions daného subprojektu
     val coreLibSourceSet = coreLibProject.extensions.getByType<SourceSetContainer>()["main"]
     from(coreLibSourceSet.output)
 }
