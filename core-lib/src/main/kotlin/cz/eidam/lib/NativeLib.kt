@@ -94,13 +94,14 @@ object JarLibLoader {
         val extension = platform.os.extension
 
         // Resource path in JAR: natives/macos-aarch64/libaudiokit.dylib (etc.)
-        val resourcePath = "/natives/${platform.dir}/lib${name}.${extension}"
+        val prefix = if (platform.os == Os.Windows) "" else "lib"
+        val resourcePath = "/natives/${platform.dir}/${prefix}${name}.${extension}"
 
         // Try to load from JAR resource first
         val resourceStream = JarLibLoader::class.java.getResourceAsStream(resourcePath)
         if (resourceStream != null) {
             // Extract to temp file and load, but verify extracted size
-            val tempFile = Files.createTempFile("lib", ".${extension}")
+            val tempFile = Files.createTempFile(prefix, ".${extension}")
             tempFile.toFile().deleteOnExit()
             resourceStream.use { input ->
                 Files.copy(input, tempFile, StandardCopyOption.REPLACE_EXISTING)
@@ -118,7 +119,7 @@ object JarLibLoader {
 
         // If not present in JAR (common during IDE hot-run), try to load from local build output
         val userDir = System.getProperty("user.dir")
-        val localPath = java.io.File(userDir, "desktop-lib/build/resources/main/natives/${platform.dir}/lib${name}.${extension}")
+        val localPath = java.io.File(userDir, "desktop-lib/build/resources/main/natives/${platform.dir}/${prefix}${name}.${extension}")
         if (localPath.exists() && localPath.length() > 0) {
             System.load(localPath.absolutePath)
             return
