@@ -22,7 +22,7 @@ file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/config.h" "
 #define HAVE_ERRNO_H 1
 #define HAVE_LIMITS_H 1
 #define HAVE_STDARG_H 1
-#define HAVE_VA_ARGS 1
+#define HAVE_C99_VARARGS_MACROS 1
 
 #ifndef _MSC_VER
 #define HAVE_UNISTD_H 1
