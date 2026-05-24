@@ -1,0 +1,83 @@
+name: Build and Publish Multiplatform Jar
+
+on:
+  push:
+    branches: [ main ] # Spustí se automaticky, jakmile pushneš do větve main
+
+jobs:
+  # =================================================================
+  # FÁZE 1: Paralelní kompilace C++ binárek na Macu, Windows a Linuxu
+  # =================================================================
+  build-natives:
+    name: Build Native on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [macos-latest, windows-latest, ubuntu-latest]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: 'recursive' # KLÍČOVÉ: Přinutí GitHub stáhnout RtAudio a Aubio submoduly
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      # DŮLEŽITÉ PRO LINUX: RtAudio potřebuje vývojové balíčky pro ALSA a hlášení o zařízeních
+      - name: Install Linux Audio Dependencies
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libasound2-dev pkg-config
+
+      # TRIK: "shell: bash" vnutí Git Bash i na Windows stroji.
+      # Díky tomu funguje unixový příkaz "./gradlew" všude stejně a nemusíš řešit gradlew.bat.
+      - name: Compile C++ JNI Library
+        shell: bash
+        run: ./gradlew :desktop-lib:cmakeBuild
+
+      # GitHub vezme složku build/clibs (kde už je podsložka s názvem platformy) a schová ji na server
+      - name: Upload Native Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-libs-${{ matrix.os }}
+          path: desktop-lib/build/clibs/
+          if-no-files-found: error
+
+  # =================================================================
+  # FÁZE 2: Stažení všech binárek, sesypání pod jeden JAR a publikace
+  # =================================================================
+  package-and-publish:
+    name: Package Fat JAR & Publish
+    needs: build-natives # Spustí se, až když všechny 3 OS úspěšně dovaří C++
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      # Stáhneme všechny tři zipy z předchozí fáze naráz
+      - name: Download All Native Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: desktop-lib/build/clibs/
+          pattern: native-libs-*
+          merge-multiple: true # Rozbalí je do jedné jediné společné složky build/clibs/
+
+      # Pro tvou kontrolu v logu: Krásně ti to v konzoli vypíše výsledný strom složek
+      - name: Verify Native Files Layout
+        run: ls -R desktop-lib/build/clibs/
+
+      # Finální sestavení Fat JARu, který v sobě teď má macos, windows i linux binárky
+      - name: Build Universal Jar
+        run: ./gradlew :desktop-lib:jar
