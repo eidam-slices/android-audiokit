@@ -20,7 +20,10 @@ target_include_directories(aubio PUBLIC "${AUBIO_ROOT}" "${CMAKE_CURRENT_BINARY_
 target_compile_definitions(aubio PRIVATE HAVE_CONFIG_H)
 target_link_libraries(aubio PUBLIC m)
 
-if(NOT MSVC)
+if(MSVC)
+    # Vynutíme moderní preprocesor, aby MSVC uměl správně přečíst makra s '...' v Aubio
+    target_compile_options(aubio PRIVATE /Zc:preprocessor)
+else()
     target_compile_options(aubio PRIVATE -std=gnu99 -Wno-implicit-function-declaration)
 endif()
 
