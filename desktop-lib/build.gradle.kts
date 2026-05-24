@@ -103,7 +103,7 @@ tasks.named<ProcessResources>("processResources") {
 
     // CMake already outputs into build/resources/main/natives/<platformDir>/
     // processResources just ensures they're in the JAR under natives/
-    from("${buildDir}/resources/main/natives") {
+    from("build/clibs") {
         include("**/*.dylib", "**/*.so", "**/*.dll")
         into("natives")
     }
