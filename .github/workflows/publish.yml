@@ -84,3 +84,9 @@ jobs:
       # Finální sestavení Fat JARu, který v sobě teď má macos, windows i linux binárky
       - name: Build Universal Jar
         run: ./gradlew :desktop-lib:jar -x :desktop-lib:cmakeConfigure -x :desktop-lib:cmakeBuild
+
+      - name: Upload Universal Fat Jar
+        uses: actions/upload-artifact@v4
+        with:
+          name: universal-audiokit
+          path: desktop-lib/build/libs/*.jar
