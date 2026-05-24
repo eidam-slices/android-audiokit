@@ -19,7 +19,10 @@ set_target_properties(aubio PROPERTIES POSITION_INDEPENDENT_CODE ON)
 target_include_directories(aubio PUBLIC "${AUBIO_ROOT}" "${CMAKE_CURRENT_BINARY_DIR}")
 target_compile_definitions(aubio PRIVATE HAVE_CONFIG_H)
 target_link_libraries(aubio PUBLIC m)
-target_compile_options(aubio PRIVATE -std=gnu99 -Wno-implicit-function-declaration)
+
+if(NOT MSVC)
+    target_compile_options(aubio PRIVATE -std=gnu99 -Wno-implicit-function-declaration)
+endif()
 
 file(GLOB_RECURSE CORE_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp")
 # Include only core engine sources in core_native. The JNI glue is compiled
